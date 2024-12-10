@@ -1,0 +1,5 @@
+prefect
+prefect-aws
+prefect-dbt
+duckdb
+polars
