@@ -1,15 +1,15 @@
 # MLB Game Analysis Pipeline
 
 ## Overview
-This project contains a series of example pipelines that demonstrate how to use Prefect for scheduling, implementing error handling, data quality checks, and automated retries. Each example is an iteration of a data pipeline that fetches and analyzes MLB game statistics using the MLB Stats API.
+This project contains a series of example pipelines that demonstrate how to use Prefect for scheduling, implementing error handling, data quality checks, and automated retries. Each example is an iteration of a data pipeline that fetches and analyzes MLB game statistics using the MLB Stats API. Specifically, we'll be looking at the correlation between the score differential and the game duration.
 
 ## Topics we'll cover:
 - Fetching MLB game data for specified date ranges
-- Calculates game statistics including score differentials and game duration
-- Implementing error handling for API failures
-- Data quality checks
-- Storage of results in local JSON files
+- Calculating game statistics including score differentials and game duration
 - Running pipelines on a configurable schedule
+- Automatic retries and implementing custom error handling for API failures
+- Prefect transactions, rollbacks, and data quality checks
+- Storage of results in local JSON files
 
 ## Prerequisites
 - Python 3.8+

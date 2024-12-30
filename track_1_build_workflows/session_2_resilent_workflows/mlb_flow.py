@@ -1,10 +1,12 @@
 from prefect import flow, task, runtime
 from prefect.artifacts import create_markdown_artifact
+from prefect_aws.s3 import S3Bucket
+from prefect.blocks.system import Secret
 from datetime import datetime
 import statsapi
 import json
 import pandas as pd
-
+import duckdb
 @task
 def get_recent_games(team_id, start_date, end_date):
     # Get all games for the provided team and date range
@@ -15,7 +17,7 @@ def get_recent_games(team_id, start_date, end_date):
 
 
 @task
-def fetch_single_game_boxscore(game_id):
+def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
     boxscore = statsapi.boxscore_data(game_id)
     
     # Extract relevant data
@@ -27,6 +29,9 @@ def fetch_single_game_boxscore(game_id):
     
     #Create a dictionary with the game data
     game_data = {
+        'search_start_date': start_date,
+        'search_end_date': end_date,
+        'chosen_team_id': team_id,
         'game_id': game_id,
         'home_team': home_team,
         'away_team': away_team,
@@ -39,32 +44,80 @@ def fetch_single_game_boxscore(game_id):
     print(game_data)
     return game_data
 
-@task
-def clean_time_value(game_data):
-    #Remove any extra text like '(1:16 delay)'
-    if '(' in game_data['game_time']:
-        game_data['game_time'] = game_data['game_time'].split('(')[0]
-    
-    # Remove any non-digit, non-colon characters
-    game_data['game_time'] = ''.join(char for char in game_data['game_time'] if char.isdigit() or char == ':')
-    
-    hours, minutes = map(int, game_data['game_time'].split(':'))
-    game_data['game_time_in_minutes'] = hours * 60 + minutes
-    
-    print(game_data)
-    return game_data
 
 @task
-def save_raw_data_to_file(game_data, team_id):
+def save_raw_data_to_file(game_data, file_name):
     #save raw data to the raw_data folder
-    today = datetime.now().strftime("%Y-%m-%d") #YYYY-MM-DD
-    flow_run_name = runtime.flow_run.name
-    with open(f"./raw_data/{today}-{team_id}-{flow_run_name}-boxscore.json", "w") as outfile:
+    with open(file_name, "w") as outfile:
         json.dump(game_data, outfile, indent=4, sort_keys=True)
     
+    print(file_name)
+    return file_name
+        
+        
 @task
-def analyze_games(game_data, start_date, end_date, team_id):
+def upload_raw_data_to_s3(file_path):
+    #upload raw data to s3
+    s3_bucket = S3Bucket.load("mlb-raw-data")
+    s3_bucket_path = s3_bucket.upload_from_path(file_path)
+    
+    print(s3_bucket_path)
+    return s3_bucket_path
+    
+
+@task
+def download_raw_data_from_s3(s3_file_path):
+    s3_bucket = S3Bucket.load("mlb-raw-data")
+    local_file_path = f"./boxscore_analysis/{s3_file_path}"
+    s3_bucket.download_object_to_path(s3_file_path, local_file_path)
+    
+    return local_file_path
+
+@task
+def clean_time_value(data_file_path):
+    try:
+        with open(data_file_path, 'r') as f:
+            game_data_list = json.load(f)
+    except FileNotFoundError:
+        raise ValueError(f"File not found: {data_file_path}") 
+    except json.JSONDecodeError:
+        raise ValueError(f"Invalid JSON file: {data_file_path}")
+    
+    # Process each game in the list
+    for game_data in game_data_list:
+        # Remove any extra text like '(1:16 delay)'
+        if '(' in game_data['game_time']:
+            game_data['game_time'] = game_data['game_time'].split('(')[0]
+        
+        # Remove any non-digit, non-colon characters
+        game_data['game_time'] = ''.join(char for char in game_data['game_time'] if char.isdigit() or char == ':')
+        
+        hours, minutes = map(int, game_data['game_time'].split(':'))
+        game_data['game_time_in_minutes'] = hours * 60 + minutes
+    
+    # Save the modified data back to the file
+    with open(data_file_path, 'w') as f:
+        json.dump(game_data_list, f, indent=4, sort_keys=True)
+    
+    return data_file_path
+    
+@task
+def analyze_games(data_file_path):
+    try:
+        with open(data_file_path, 'r') as f:
+            game_data = json.load(f)
+    except FileNotFoundError:
+        raise ValueError(f"File not found: {data_file_path}")
+    except json.JSONDecodeError:
+        raise ValueError(f"Invalid JSON file: {data_file_path}")
+    
+    # Convert to DataFrame
     df = pd.DataFrame(game_data)
+    
+    #Get the search parameters
+    start_date = df['search_start_date'].unique()[0]
+    end_date = df['search_end_date'].unique()[0]
+    team_id = df['chosen_team_id'].unique()[0]
     
     # Calculate average, median, max, and min differential
     avg_differential = float(df['score_differential'].mean())
@@ -100,16 +153,24 @@ def analyze_games(game_data, start_date, end_date, team_id):
     return game_analysis
 
 @task
-def save_analysis_to_file(game_analysis, team_id):
-    today = datetime.now().strftime("%Y-%m-%d") #YYYY-MM-DD
-    flow_run_name = runtime.flow_run.name
-    with open(f"./boxscore_analysis/{today}-{team_id}-{flow_run_name}-game-analysis.json", "w") as outfile:
-        json.dump(game_analysis, outfile, indent=4, sort_keys=True)
+def save_analysis_to_file(game_analysis, file_name):
+    # Method 1: Single row format
+    df = pd.DataFrame([game_analysis])
+    df.to_csv(file_name, index=False)
+    
+    print(file_name)
+    return file_name
 
 @task
-def game_analysis_artifact(game_analysis, game_data):
+def game_analysis_artifact(game_analysis, game_data_path):
+    # First read the JSON data from the file
+    with open(game_data_path, 'r') as f:
+        game_data = json.load(f)
+    
+    # Now create the DataFrame from the loaded data
     df = pd.DataFrame(game_data)
     
+    # Create the markdown report
     markdown_report=f""" # Game Analysis Report
 ## Search Parameters
 Search Start Date: {game_analysis['search_start_date']}
@@ -144,25 +205,64 @@ def mlb_flow(team_id, start_date, end_date):
     game_ids = get_recent_games(team_id, start_date, end_date)
     
     # Fetch boxscore for each game
-    game_data = [fetch_single_game_boxscore(game_id) for game_id in game_ids]
+    game_data = [fetch_single_game_boxscore(game_id, start_date, end_date, team_id) for game_id in game_ids]
     
-    # Save raw data to a file
-    save_raw_data_to_file(game_data, team_id)
+    #Define file path for raw data
+    today = datetime.now().strftime("%Y-%m-%d") #YYYY-MM-DD
+    flow_run_name = runtime.flow_run.name
+    raw_file_path = f"./raw_data/{today}-{team_id}-{flow_run_name}-boxscore.json"
+    
+    # Save raw data to a local folder
+    save_raw_data_to_file(game_data, raw_file_path)
+    
+    # Upload raw data to s3
+    s3_file_path = upload_raw_data_to_s3(raw_file_path)
+    
+    #Download raw data from s3
+    raw_data = download_raw_data_from_s3(s3_file_path)
     
     # Clean the time value
-    game_data = [clean_time_value(game_data) for game_data in game_data]
+    clean_data = clean_time_value(raw_data)
     
     # Analyze the results
-    results = analyze_games(game_data, start_date, end_date, team_id)
+    results = analyze_games(clean_data)
     
     # Save the results to a file
-    save_analysis_to_file(results, team_id)
+    csv_file_path = f"./boxscore_csvs/{today}-{team_id}-{flow_run_name}-game-analysis.csv"
+    save_analysis_to_file(results, csv_file_path)
     
     # Save the results to an artifact
-    game_analysis_artifact(results, game_data)
+    game_analysis_artifact(results, raw_data)
+    
+    #TODO: Insert the results into the Mother Duck table    
+    
+    # #Connect to duckdb
+    # secret_block = Secret.load("mother-duck-test")
+    # # Access the stored secret
+    # duck_token = secret_block.get()
+    # duckdb_conn = duckdb.connect(f"md://{duck_token}")
+    
+    # #Create a table in duckdb
+    # duckdb_conn.execute("""
+    #                 CREATE TABLE IF NOT EXISTS boxscore_analysis (
+    #                     search_start_date TEXT, 
+    #                     search_end_date TEXT, 
+    #                     chosen_team_id TEXT, 
+    #                     max_game_time FLOAT, 
+    #                     min_game_time FLOAT, 
+    #                     median_game_time FLOAT, 
+    #                     average_game_time FLOAT, 
+    #                     max_differential FLOAT,
+    #                     min_differential FLOAT, 
+    #                     median_differential FLOAT, 
+    #                     average_differential FLOAT, 
+    #                     time_differential_correlation FLOAT)""")
+    
+    # #TODO: Insert the results into the table
+    # #duckdb_conn.sql("""INSERT INTO boxscore_analysis VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", results['search_start_date'], results['search_end_date'], results['chosen_team_id'], results['max_game_time'], results['min_game_time'], results['median_game_time'], results['average_game_time'], results['max_differential'], results['min_differential'], results['median_differential'], results['average_differential'], results['time_differential_correlation']""")
     
     
 if __name__ == "__main__":
-    mlb_flow(143, '06/01/2024', '08/31/2024')
+    mlb_flow(143, '06/01/2024', '06/30/2024')
     
 

@@ -173,7 +173,7 @@ def mlb_flow_rollback(team_id, start_date, end_date):
     with transaction() as txn:
         txn.set("filepath", raw_file_path)
         # Save raw data to a file
-        file_path = save_raw_data_to_file(game_data, raw_file_path)
+        save_raw_data_to_file(game_data, raw_file_path)
         time.sleep(10) # sleeping to give you a chance to see the file
         quality_test(raw_file_path)
     
