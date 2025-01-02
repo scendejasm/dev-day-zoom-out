@@ -3,3 +3,8 @@ prefect-aws
 prefect-dbt
 duckdb
 polars
+mlb-statsapi
+pandas
+pyarrow
+fastparquet
+tabulate

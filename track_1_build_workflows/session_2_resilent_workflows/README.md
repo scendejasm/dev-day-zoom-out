@@ -12,8 +12,7 @@ This project contains a series of example pipelines that demonstrate how to use 
 - Storage of results in local JSON files
 
 ## Prerequisites
-- Python 3.8+
-- Prefect 3.0+
+Follow the top level ReadMe to install all proper prerequisites!
 
 ## Project Contents
 - `mlb_flow.py`: A basic pipeline that fetches and analyzes MLB game statistics for a specified team and date range.
