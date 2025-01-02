@@ -7,6 +7,7 @@ import statsapi
 import json
 import pandas as pd
 import duckdb
+
 @task
 def get_recent_games(team_id, start_date, end_date):
     # Get all games for the provided team and date range
@@ -156,7 +157,7 @@ def analyze_games(data_file_path):
 def save_analysis_to_file(game_analysis, file_name):
     # Method 1: Single row format
     df = pd.DataFrame([game_analysis])
-    df.to_csv(file_name, index=False)
+    df.to_parquet(file_name)
     
     print(file_name)
     return file_name
@@ -197,6 +198,32 @@ Correlation between game time and score differential: {game_analysis['time_diffe
         markdown=markdown_report,
         description="Game analysis report"
     )
+    
+@task
+def load_parquet_to_duckdb(parquet_file_path):
+    #Connect to duckdb
+    secret_block = Secret.load("mother-duck-test")
+    # Access the stored secret
+    duck_token = secret_block.get()
+    duckdb_conn = duckdb.connect(f"md:?motherduck_token={duck_token}")
+    
+    #Create a table in duckdb
+    duckdb_conn.execute("""CREATE TABLE IF NOT EXISTS boxscore_analysis (
+        search_start_date TEXT, 
+        search_end_date TEXT, 
+        chosen_team_id TEXT, 
+        max_game_time FLOAT, 
+        min_game_time FLOAT, 
+        median_game_time FLOAT, 
+        average_game_time FLOAT, 
+        max_differential FLOAT, 
+        min_differential FLOAT, 
+        median_differential FLOAT, 
+        average_differential FLOAT, 
+        time_differential_correlation FLOAT)""")
+    
+    # Use the COPY command to load the Parquet file into MotherDuck
+    duckdb_conn.execute(f"COPY boxscore_analysis FROM '{parquet_file_path}' (FORMAT 'parquet')")
 
 
 @flow
@@ -227,39 +254,15 @@ def mlb_flow(team_id, start_date, end_date):
     # Analyze the results
     results = analyze_games(clean_data)
     
-    # Save the results to a file
-    csv_file_path = f"./boxscore_csvs/{today}-{team_id}-{flow_run_name}-game-analysis.csv"
-    save_analysis_to_file(results, csv_file_path)
+    # Save the results to a parquet file
+    parquet_file_path = f"./boxscore_parquet/{today}-{team_id}-{flow_run_name}-game-analysis.parquet"
+    save_analysis_to_file(results, parquet_file_path)
+    
+    # Load the results to duckdb
+    load_parquet_to_duckdb(parquet_file_path)
     
     # Save the results to an artifact
     game_analysis_artifact(results, raw_data)
-    
-    #TODO: Insert the results into the Mother Duck table    
-    
-    # #Connect to duckdb
-    # secret_block = Secret.load("mother-duck-test")
-    # # Access the stored secret
-    # duck_token = secret_block.get()
-    # duckdb_conn = duckdb.connect(f"md://{duck_token}")
-    
-    # #Create a table in duckdb
-    # duckdb_conn.execute("""
-    #                 CREATE TABLE IF NOT EXISTS boxscore_analysis (
-    #                     search_start_date TEXT, 
-    #                     search_end_date TEXT, 
-    #                     chosen_team_id TEXT, 
-    #                     max_game_time FLOAT, 
-    #                     min_game_time FLOAT, 
-    #                     median_game_time FLOAT, 
-    #                     average_game_time FLOAT, 
-    #                     max_differential FLOAT,
-    #                     min_differential FLOAT, 
-    #                     median_differential FLOAT, 
-    #                     average_differential FLOAT, 
-    #                     time_differential_correlation FLOAT)""")
-    
-    # #TODO: Insert the results into the table
-    # #duckdb_conn.sql("""INSERT INTO boxscore_analysis VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", results['search_start_date'], results['search_end_date'], results['chosen_team_id'], results['max_game_time'], results['min_game_time'], results['median_game_time'], results['average_game_time'], results['max_differential'], results['min_differential'], results['median_differential'], results['average_differential'], results['time_differential_correlation']""")
     
     
 if __name__ == "__main__":
