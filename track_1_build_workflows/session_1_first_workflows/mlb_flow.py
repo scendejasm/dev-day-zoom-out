@@ -41,7 +41,7 @@ def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
         'score_differential': abs(home_score - away_score),
         'game_time': time_value,
     }
-    
+
     print(game_data)
     return game_data
 
@@ -100,6 +100,8 @@ def clean_time_value(data_file_path):
     with open(data_file_path, 'w') as f:
         json.dump(game_data_list, f, indent=4, sort_keys=True)
     
+    # i = 1/0
+
     return data_file_path
     
 @task
@@ -267,5 +269,15 @@ def mlb_flow(team_id, start_date, end_date):
     
 if __name__ == "__main__":
     mlb_flow(143, '06/01/2024', '06/30/2024')
+
+    # mlb_flow.serve(
+    #     parameters={
+    #         #"repos": ["python/cpython", "prefectHQ/prefect"],
+    #         "team_id": 143,
+    #         "start_date": "06/01/2024",
+    #         "end_date": "06/30/2024"
+    #     },
+    #     cron="30 * * * *"
+    # )
     
 
