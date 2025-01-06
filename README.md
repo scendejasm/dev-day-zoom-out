@@ -4,9 +4,11 @@ This is the repository for Summit Dev Day January 2025.
 
 ## Setup
 
-Use your chosen Python virtual environment manager.
+Use the Python virtual environment manager of your choice.
 We suggest using [uv](https://docs.astral.sh/uv/) because it's fast and relatively quick to set up, but feel free to use your preferred tool.
-The examples below show uv.
+The examples below show uv. 
+Ensure you have exited out of any other virtual environments before following the instructions below.
+
 
 ### Download the repository and navigate to the directory
 

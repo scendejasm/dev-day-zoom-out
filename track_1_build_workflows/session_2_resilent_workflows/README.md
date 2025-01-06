@@ -9,6 +9,8 @@ This project contains a series of example pipelines that demonstrate how to use 
 - Prefect transactions, rollbacks, and data quality checks
 - Storage of results in local JSON files, MotherDuck, and S3
 
+## Prerequisites
+Follow the top level ReadMe to install all proper prerequisites!
 
 ## Project Contents
 - `mlb_flow.py`: A basic pipeline that fetches and analyzes MLB game statistics for a specified team and date range.
