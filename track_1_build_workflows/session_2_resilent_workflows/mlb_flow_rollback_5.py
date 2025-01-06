@@ -1,16 +1,19 @@
 from prefect import flow, task, runtime
 from prefect.artifacts import create_markdown_artifact
+from prefect.transactions import transaction
 from prefect_aws.s3 import S3Bucket
 from prefect.blocks.system import Secret
 from datetime import datetime
 import statsapi
 import json
 import pandas as pd
+import os
+import time
 import duckdb
 
 @task
 def get_recent_games(team_id, start_date, end_date):
-    '''This task will fetch the schedule for the provided team and date range and return the game ids.'''
+    # Get all games for the provided team and date range
     schedule = statsapi.schedule(team=team_id,start_date=start_date,end_date=end_date)
     for game in schedule:
         print(game['game_id'])
@@ -19,7 +22,6 @@ def get_recent_games(team_id, start_date, end_date):
 
 @task
 def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
-    '''This task will fetch the boxscore for a single game and return the game data.'''
     boxscore = statsapi.boxscore_data(game_id)
     
     # Extract relevant data
@@ -46,33 +48,41 @@ def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
     print(game_data)
     return game_data
 
-
 @task
 def save_raw_data_to_file(game_data, file_name):
-    '''This task will save the raw data to a file.'''
-    
+    #save raw data to the raw_data folder
     with open(file_name, "w") as outfile:
         json.dump(game_data, outfile, indent=4, sort_keys=True)
     
     print(file_name)
     return file_name
+
+@save_raw_data_to_file.on_rollback
+def del_file(txn):
+    "Deletes file."
+    os.unlink(txn.get("filepath"))
+    
+
+@task
+def quality_test(file_path):
+    "Checks contents of file."
+    with open(file_path, "r") as f:
+        data = json.load(f)
         
-        
+    if len(data) < 5:
+        raise ValueError(f"Not enough data! There are only {len(data)} games in the file.")
+
 @task
 def upload_raw_data_to_s3(file_path):
-    '''This task will upload the raw data to s3.'''
-    
+    #upload raw data to s3
     s3_bucket = S3Bucket.load("mlb-raw-data")
     s3_bucket_path = s3_bucket.upload_from_path(file_path)
     
     print(s3_bucket_path)
     return s3_bucket_path
-    
 
 @task
 def download_raw_data_from_s3(s3_file_path):
-    '''Download the raw data from s3.'''
-    
     s3_bucket = S3Bucket.load("mlb-raw-data")
     local_file_path = f"./boxscore_analysis/{s3_file_path}"
     s3_bucket.download_object_to_path(s3_file_path, local_file_path)
@@ -107,6 +117,7 @@ def clean_time_value(data_file_path):
     
     return data_file_path
     
+
 @task
 def analyze_games(data_file_path):
     try:
@@ -203,7 +214,7 @@ Correlation between game time and score differential: {game_analysis['time_diffe
         markdown=markdown_report,
         description="Game analysis report"
     )
-    
+
 @task
 def load_parquet_to_duckdb(parquet_file_path):
     #Connect to duckdb
@@ -231,8 +242,9 @@ def load_parquet_to_duckdb(parquet_file_path):
     duckdb_conn.execute(f"COPY boxscore_analysis FROM '{parquet_file_path}' (FORMAT 'parquet')")
 
 
+
 @flow
-def mlb_flow(team_id, start_date, end_date):
+def mlb_flow_rollback(team_id, start_date, end_date):
     # Get recent games
     game_ids = get_recent_games(team_id, start_date, end_date)
     
@@ -244,11 +256,16 @@ def mlb_flow(team_id, start_date, end_date):
     flow_run_name = runtime.flow_run.name
     raw_file_path = f"./raw_data/{today}-{team_id}-{flow_run_name}-boxscore.json"
     
-    # Save raw data to a local folder
-    save_raw_data_to_file(game_data, raw_file_path)
+    #Create transaction which will be used to rollback if the data quality test fails
+    with transaction() as txn:
+        txn.set("filepath", raw_file_path)
+        # Save raw data to a file
+        save_raw_data_to_file(game_data, raw_file_path)
+        time.sleep(10) # sleeping to give you a chance to see the file
+        quality_test(raw_file_path)
+        # Upload raw data to s3
+        s3_file_path = upload_raw_data_to_s3(raw_file_path)
     
-    # Upload raw data to s3
-    s3_file_path = upload_raw_data_to_s3(raw_file_path)
     
     #Download raw data from s3
     raw_data = download_raw_data_from_s3(s3_file_path)
@@ -259,7 +276,7 @@ def mlb_flow(team_id, start_date, end_date):
     # Analyze the results
     results = analyze_games(clean_data)
     
-    # Save the results to a file
+    # Save the results to a parquet file
     parquet_file_path = f"./boxscore_parquet/{today}-{team_id}-{flow_run_name}-game-analysis.parquet"
     save_analysis_to_file(results, parquet_file_path)
     
@@ -271,6 +288,7 @@ def mlb_flow(team_id, start_date, end_date):
     
     
 if __name__ == "__main__":
-    mlb_flow(143, '06/01/2024', '06/30/2024')
-    
-
+    #This flow will succeed
+    mlb_flow_rollback(143, '06/01/2024', '06/30/2024')
+    #This flow will fail the quality test
+    mlb_flow_rollback(143, '06/01/2024', '06/02/2024')

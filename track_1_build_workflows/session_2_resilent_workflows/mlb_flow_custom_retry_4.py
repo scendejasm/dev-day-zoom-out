@@ -7,11 +7,38 @@ import statsapi
 import json
 import pandas as pd
 import duckdb
+import random
+import time
 
-@task
+#Custom retry handler
+def retry_handler(task, task_run, state) -> bool:
+    """Custom retry handler that specifies when to retry a task"""
+    try:
+        # Attempt to get the result of the task
+        state.result()
+    except Exception as e:
+        #If Exception is a TimeoutError, retry
+        if isinstance(e, TimeoutError):
+            return True
+        #For any other exception, do not retry
+        return False
+
+#The retry_condition_fn parameter allows us to specify a custom retry condition function
+@task(retries=10, retry_condition_fn=retry_handler)
 def get_recent_games(team_id, start_date, end_date):
-    '''This task will fetch the schedule for the provided team and date range and return the game ids.'''
-    schedule = statsapi.schedule(team=team_id,start_date=start_date,end_date=end_date)
+    # Generate random number
+    failure_chance = random.random()
+    
+    # Simulate different types of failures
+    if failure_chance < 0.3:
+        time.sleep(2) #Allow us to see the retries in action
+        raise Exception("Simulated API failure: MLB Stats API is temporarily unavailable")
+    elif failure_chance >= 0.4:
+        time.sleep(2) #Allow us to see the retries in action
+        raise TimeoutError("Simulated timeout: Request took too long") # Simulate empty response
+    
+    # Normal operation
+    schedule = statsapi.schedule(team=team_id, start_date=start_date, end_date=end_date)
     for game in schedule:
         print(game['game_id'])
     return [game['game_id'] for game in schedule]
@@ -19,7 +46,6 @@ def get_recent_games(team_id, start_date, end_date):
 
 @task
 def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
-    '''This task will fetch the boxscore for a single game and return the game data.'''
     boxscore = statsapi.boxscore_data(game_id)
     
     # Extract relevant data
@@ -49,8 +75,7 @@ def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
 
 @task
 def save_raw_data_to_file(game_data, file_name):
-    '''This task will save the raw data to a file.'''
-    
+    #save raw data to the raw_data folder
     with open(file_name, "w") as outfile:
         json.dump(game_data, outfile, indent=4, sort_keys=True)
     
@@ -60,8 +85,7 @@ def save_raw_data_to_file(game_data, file_name):
         
 @task
 def upload_raw_data_to_s3(file_path):
-    '''This task will upload the raw data to s3.'''
-    
+    #upload raw data to s3
     s3_bucket = S3Bucket.load("mlb-raw-data")
     s3_bucket_path = s3_bucket.upload_from_path(file_path)
     
@@ -71,8 +95,6 @@ def upload_raw_data_to_s3(file_path):
 
 @task
 def download_raw_data_from_s3(s3_file_path):
-    '''Download the raw data from s3.'''
-    
     s3_bucket = S3Bucket.load("mlb-raw-data")
     local_file_path = f"./boxscore_analysis/{s3_file_path}"
     s3_bucket.download_object_to_path(s3_file_path, local_file_path)
@@ -259,7 +281,7 @@ def mlb_flow(team_id, start_date, end_date):
     # Analyze the results
     results = analyze_games(clean_data)
     
-    # Save the results to a file
+    # Save the results to a parquet file
     parquet_file_path = f"./boxscore_parquet/{today}-{team_id}-{flow_run_name}-game-analysis.parquet"
     save_analysis_to_file(results, parquet_file_path)
     
@@ -272,5 +294,3 @@ def mlb_flow(team_id, start_date, end_date):
     
 if __name__ == "__main__":
     mlb_flow(143, '06/01/2024', '06/30/2024')
-    
-
