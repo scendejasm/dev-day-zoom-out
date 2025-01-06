@@ -7,10 +7,18 @@ import statsapi
 import json
 import pandas as pd
 import duckdb
+from prefect.tasks import exponential_backoff
+import random
 
-@task
+#The exponential_backoff utility will automatically generate a list of retry delays that correspond to an exponential backoff retry strategy.
+#This task will retry 10 times with a delay of 2, 4, 8, and 16 seconds
+@task(retries=4, retry_delay_seconds=exponential_backoff(backoff_factor=2))
 def get_recent_games(team_id, start_date, end_date):
-    '''This task will fetch the schedule for the provided team and date range and return the game ids.'''
+    # Simulate random API failure (70% chance)
+    if random.random() < 0.7:
+        raise Exception("Simulated API failure: MLB Stats API is temporarily unavailable")
+    
+    # Get all games for the provided team and date range
     schedule = statsapi.schedule(team=team_id,start_date=start_date,end_date=end_date)
     for game in schedule:
         print(game['game_id'])
@@ -19,7 +27,6 @@ def get_recent_games(team_id, start_date, end_date):
 
 @task
 def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
-    '''This task will fetch the boxscore for a single game and return the game data.'''
     boxscore = statsapi.boxscore_data(game_id)
     
     # Extract relevant data
@@ -49,8 +56,7 @@ def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
 
 @task
 def save_raw_data_to_file(game_data, file_name):
-    '''This task will save the raw data to a file.'''
-    
+    #save raw data to the raw_data folder
     with open(file_name, "w") as outfile:
         json.dump(game_data, outfile, indent=4, sort_keys=True)
     
@@ -60,8 +66,7 @@ def save_raw_data_to_file(game_data, file_name):
         
 @task
 def upload_raw_data_to_s3(file_path):
-    '''This task will upload the raw data to s3.'''
-    
+    #upload raw data to s3
     s3_bucket = S3Bucket.load("mlb-raw-data")
     s3_bucket_path = s3_bucket.upload_from_path(file_path)
     
@@ -71,8 +76,6 @@ def upload_raw_data_to_s3(file_path):
 
 @task
 def download_raw_data_from_s3(s3_file_path):
-    '''Download the raw data from s3.'''
-    
     s3_bucket = S3Bucket.load("mlb-raw-data")
     local_file_path = f"./boxscore_analysis/{s3_file_path}"
     s3_bucket.download_object_to_path(s3_file_path, local_file_path)
@@ -259,7 +262,7 @@ def mlb_flow(team_id, start_date, end_date):
     # Analyze the results
     results = analyze_games(clean_data)
     
-    # Save the results to a file
+    # Save the results to a parquet file
     parquet_file_path = f"./boxscore_parquet/{today}-{team_id}-{flow_run_name}-game-analysis.parquet"
     save_analysis_to_file(results, parquet_file_path)
     
@@ -272,5 +275,3 @@ def mlb_flow(team_id, start_date, end_date):
     
 if __name__ == "__main__":
     mlb_flow(143, '06/01/2024', '06/30/2024')
-    
-
