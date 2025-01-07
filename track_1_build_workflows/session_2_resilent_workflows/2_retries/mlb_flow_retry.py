@@ -8,16 +8,19 @@ import json
 import pandas as pd
 import duckdb
 import random
-#The retry_delay_seconds option accepts a list of integers for customized retry behavior
-#This task will retry 10 times with a delay of 1 second each time
-@task(retries=10, retry_delay_seconds=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-def get_recent_games(team_id, start_date, end_date):
-    # Simulate random API failure (70% chance)
+import time
+
+#Get recent games, retry 10 times if the API fails
+@task(retries=10)
+def get_recent_games(team_name, start_date, end_date):
+     # Simulate random API failure (70% chance)
     if random.random() < 0.7:
+        time.sleep(2) #Allow us to see the retries in action
         raise Exception("Simulated API failure: MLB Stats API is temporarily unavailable")
     
-    # If no failure, proceed with actual API call
-    schedule = statsapi.schedule(team=team_id, start_date=start_date, end_date=end_date)
+    # Get all games for the provided team and date range
+    team = statsapi.lookup_team(team_name)
+    schedule = statsapi.schedule(team=team[0]["id"], start_date=start_date, end_date=end_date)
     for game in schedule:
         print(game['game_id'])
     return [game['game_id'] for game in schedule]
@@ -272,3 +275,4 @@ def mlb_flow(team_id, start_date, end_date):
     
 if __name__ == "__main__":
     mlb_flow(143, '06/01/2024', '06/30/2024')
+    

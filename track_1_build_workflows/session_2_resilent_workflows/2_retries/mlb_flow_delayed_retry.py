@@ -7,15 +7,21 @@ import statsapi
 import json
 import pandas as pd
 import duckdb
+import random
 
-@task
+#The retry_delay_seconds option accepts a list of integers for customized retry behavior
+#This task will retry 10 times with a delay of 1 second each time
+@task(retries=10, retry_delay_seconds=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 def get_recent_games(team_id, start_date, end_date):
-    # Get all games for the provided team and date range
-    schedule = statsapi.schedule(team=team_id,start_date=start_date,end_date=end_date)
+    # Simulate random API failure (70% chance)
+    if random.random() < 0.7:
+        raise Exception("Simulated API failure: MLB Stats API is temporarily unavailable")
+    
+    # If no failure, proceed with actual API call
+    schedule = statsapi.schedule(team=team_id, start_date=start_date, end_date=end_date)
     for game in schedule:
         print(game['game_id'])
     return [game['game_id'] for game in schedule]
-
 
 @task
 def fetch_single_game_boxscore(game_id, start_date, end_date, team_id):
@@ -227,7 +233,7 @@ def load_parquet_to_duckdb(parquet_file_path):
 
 
 @flow
-def mlb_flow_scheduled(team_id, start_date, end_date):
+def mlb_flow(team_id, start_date, end_date):
     # Get recent games
     game_ids = get_recent_games(team_id, start_date, end_date)
     
@@ -266,8 +272,4 @@ def mlb_flow_scheduled(team_id, start_date, end_date):
     
     
 if __name__ == "__main__":
-    mlb_flow_scheduled.serve(name="my-mlb-deployment",
-        tags=["mlb-flow-scheduled"], 
-        parameters={"team_id": 143, "start_date": "06/01/2024", "end_date": "06/30/2024"},
-        # Run at midnight on the 1st day of every month
-        cron="0 0 1 * *")
+    mlb_flow(143, '06/01/2024', '06/30/2024')
