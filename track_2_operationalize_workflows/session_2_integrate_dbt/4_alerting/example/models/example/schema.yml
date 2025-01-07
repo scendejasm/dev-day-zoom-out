@@ -42,6 +42,9 @@ models:
       - name: venue_city
       - name: venue_state
       - name: venue_postal_code
+        data_tests:
+          - not_null
+          - unique
       - name: venue_country
       - name: elevation
     meta:
