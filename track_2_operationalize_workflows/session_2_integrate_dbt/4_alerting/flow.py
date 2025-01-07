@@ -7,7 +7,7 @@ def run_dbt():
     runner = PrefectDbtRunner(
         settings=PrefectDbtSettings(project_dir="example", profiles_dir=".")
     )
-    runner.invoke(["run"])
+    runner.invoke(["test"])
 
 
 if __name__ == "__main__":
