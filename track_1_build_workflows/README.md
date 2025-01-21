@@ -6,9 +6,9 @@ Welcome to Track 1: Build Workflows, designed for individuals that are new to Pr
 Each example is an iteration of a data pipeline that fetches and analyzes MLB game statistics using the MLB Stats API.
 
 ## Project Contents
-- `session_1_basic_workflows`: This folder contains A basic Python script that is converted into a Prefect workflow. There is an example which shows how to run this flow as a micro-service.
+- `session_1_first_workflows`: This folder contains A basic Python script that is converted into a Prefect workflow. There is an example which shows how to run this flow as a micro-service.
 - `session_2_resilent_workflows`: This folder contains a series of workflows that demonstrate how to use Prefect for implementing error handling, data quality checks, and automated retries.
-- `session_3_smart_workflows`: This folder contains a series of examples that demonstrate how to use idempotency and caching in Prefect.   
+- `session_3_efficient_workflows`: This folder contains a series of examples that demonstrate how to use idempotency and caching in Prefect.   
 
 
 ## Prerequisites
