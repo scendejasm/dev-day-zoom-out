@@ -13,3 +13,5 @@ controlflow
 chromadb
 dbt-core
 dbt-snowflake
+
+-e track_3_orchestrate_ai_workflows/session_1_building_agentic_workflows/slackbot
