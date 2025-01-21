@@ -10,3 +10,4 @@ fastparquet
 tabulate
 jupyter
 controlflow
+chromadb
