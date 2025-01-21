@@ -11,3 +11,5 @@ tabulate
 jupyter
 controlflow
 chromadb
+dbt-core
+dbt-snowflake
