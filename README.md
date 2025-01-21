@@ -1,14 +1,13 @@
-# The Summit Dev Day repo
+# Prefect Summit 2025 Dev Day repo
 
-This is the repository for Summit Dev Day January 2025.
+This is the repository that accompanies the [Prefect Summit 2025 talks](https://prefect.io/summit/dev-day-zoom-out).
 
 ## Setup
 
 Use the Python virtual environment manager of your choice.
 We suggest using [uv](https://docs.astral.sh/uv/) because it's fast and relatively quick to set up, but feel free to use your preferred tool.
-The examples below show uv. 
+The examples below show uv.
 Ensure you have exited out of any other virtual environments before following the instructions below.
-
 
 ### Download the repository and navigate to the directory
 
@@ -47,7 +46,7 @@ You should see a note that the virtual environment was created successfully and 
 source .venv/bin/activate
 ```
 
-You should see the virtual environment name in parentheses in your terminal prompt .
+You should now see the virtual environment name in parentheses in your terminal prompt.
 
 ### Install Prefect and the other Python packages you'll use during Dev Day
 
@@ -56,6 +55,8 @@ uv pip install -r requirements.txt
 ```
 
 ## Connect to Prefect Cloud
+
+For some of the examples, you'll need to connect to Prefect Cloud.
 
 If you don't already have a Prefect Cloud account, sign up for a free account at [app.prefect.cloud](https://app.prefect.cloud).
 
@@ -66,5 +67,3 @@ prefect cloud login
 ```
 
 If you have any issues connecting to Prefect Cloud, see the [Connect to Prefect Cloud docs](https://docs.prefect.io/v3/manage/cloud/connect-to-cloud).
-
-Alternatively, you can use a self-hosted Prefect server instance for the first part of Dev Day. See the [instructions for self-hosting a Prefect server](https://docs.prefect.io/v3/manage/self-host).
