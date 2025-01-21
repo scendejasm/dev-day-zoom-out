@@ -15,4 +15,4 @@ or choose [another LLM provider](https://controlflow.ai/guides/configure-llms).
 
 - Join the [Prefect Community Slack](https://communityinviter.com/apps/prefect-community/prefect-community) #controlflow channel 
 - See the ControlFlow [docs](https://controlflow.ai/)
-- Check out the [GitHub repository]
+- Check out the [GitHub repository](https://github.com/PrefectHQ/ControlFlow)
