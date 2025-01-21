@@ -10,5 +10,3 @@ fastparquet
 tabulate
 jupyter
 controlflow
-datetime
-time
