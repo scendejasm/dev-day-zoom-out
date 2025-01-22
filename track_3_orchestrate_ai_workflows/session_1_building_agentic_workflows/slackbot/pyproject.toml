@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A lightweight AI slackbot with built-in tool support"
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic-ai-slim[openai]@git+https://github.com/pydantic/pydantic-ai.git@main",
+    "pydantic-ai@git+https://github.com/pydantic/pydantic-ai.git@main",
     "prefect",
     "raggy[chroma]",
 ]
