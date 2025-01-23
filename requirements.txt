@@ -735,9 +735,9 @@ pydantic==2.10.4
     #   pydantic-extra-types
     #   pydantic-graph
     #   pydantic-settings
-pydantic-ai @ git+https://github.com/pydantic/pydantic-ai.git@81bf88331da96a26eadfecfc77dfbbe4bcead9a5
+pydantic-ai @ git+https://github.com/pydantic/pydantic-ai.git@eba8a7db0fa68aace1246569fde0d68a227c94da
     # via slacky
-pydantic-ai-slim @ git+https://github.com/pydantic/pydantic-ai.git@81bf88331da96a26eadfecfc77dfbbe4bcead9a5#subdirectory=pydantic_ai_slim
+pydantic-ai-slim @ git+https://github.com/pydantic/pydantic-ai.git@eba8a7db0fa68aace1246569fde0d68a227c94da#subdirectory=pydantic_ai_slim
     # via
     #   pydantic-ai
     #   raggy
@@ -748,7 +748,7 @@ pydantic-core==2.27.2
     #   pydantic
 pydantic-extra-types==2.10.1
     # via prefect
-pydantic-graph @ git+https://github.com/pydantic/pydantic-ai.git@81bf88331da96a26eadfecfc77dfbbe4bcead9a5#subdirectory=pydantic_graph
+pydantic-graph @ git+https://github.com/pydantic/pydantic-ai.git@eba8a7db0fa68aace1246569fde0d68a227c94da#subdirectory=pydantic_graph
     # via pydantic-ai-slim
 pydantic-settings==2.7.1
     # via
