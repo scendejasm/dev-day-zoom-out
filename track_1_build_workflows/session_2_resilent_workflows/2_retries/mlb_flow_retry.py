@@ -1,6 +1,6 @@
 from prefect import flow, task, runtime
 from prefect.artifacts import create_markdown_artifact
-from prefect_aws.s3 import S3Bucket
+from prefect_gcp.cloud_storage import GcsBucket
 from prefect.blocks.system import Secret
 from datetime import datetime
 import statsapi
@@ -9,6 +9,8 @@ import pandas as pd
 import duckdb
 import random
 import time
+
+GCS_CREDENTIALS_BLOCK="prefect-gcp-credentials-block"
 
 #Get recent games, retry 10 times if the API fails
 @task(retries=10)
@@ -67,23 +69,23 @@ def save_raw_data_to_file(game_data, file_name):
         
         
 @task
-def upload_raw_data_to_s3(file_path):
-    '''This task will upload the raw data to s3.'''
+def upload_raw_data_to_gcs(file_path):
+    '''This task will upload the raw data to cloud storage.'''
     
-    s3_bucket = S3Bucket.load("mlb-raw-data")
-    s3_bucket_path = s3_bucket.upload_from_path(file_path)
+    gcs_bucket = GcsBucket.load(GCS_CREDENTIALS_BLOCK)
+    gcs_bucket_path = gcs_bucket.upload_from_path(file_path)
     
-    print(s3_bucket_path)
-    return s3_bucket_path
+    print(gcs_bucket_path)
+    return gcs_bucket_path
     
 
 @task
-def download_raw_data_from_s3(s3_file_path):
-    '''Download the raw data from s3.'''
+def download_raw_data_from_gcs(gcs_file_path):
+    '''Download the raw data from gcs.'''
     
-    s3_bucket = S3Bucket.load("mlb-raw-data")
-    local_file_path = f"./boxscore_analysis/{s3_file_path}"
-    s3_bucket.download_object_to_path(s3_file_path, local_file_path)
+    gcs_bucket = GcsBucket.load(GCS_CREDENTIALS_BLOCK)
+    local_file_path = f"./boxscore_analysis/{gcs_file_path}"
+    gcs_bucket.download_object_to_path(gcs_file_path, local_file_path)
     
     return local_file_path
 
@@ -225,7 +227,7 @@ def load_parquet_to_duckdb(parquet_file_path, team_name):
     '''This task will load the parquet file to duckdb.'''
     
     #Connect to duckdb
-    secret_block = Secret.load("mother-duck-test")
+    secret_block = Secret.load("motherduck-token")
     # Access the stored secret
     duck_token = secret_block.get()
     duckdb_conn = duckdb.connect(f"md:?motherduck_token={duck_token}")
@@ -246,7 +248,7 @@ def load_parquet_to_duckdb(parquet_file_path, team_name):
         time_differential_correlation FLOAT)""")
     
     # Use the COPY command to load the Parquet file into MotherDuck
-    duckdb_conn.execute(f"COPY boxscore_analysis FROM '{parquet_file_path}' (FORMAT 'parquet')")
+    duckdb_conn.execute(f"COPY boxscore_analysis_{team_name} FROM '{parquet_file_path}' (FORMAT 'parquet')")
 
 
 @flow
@@ -265,11 +267,11 @@ def mlb_flow(team_name, start_date, end_date):
     # Save raw data to a local folder
     save_raw_data_to_file(game_data, raw_file_path)
     
-    # Upload raw data to s3
-    s3_file_path = upload_raw_data_to_s3(raw_file_path)
+    # Upload raw data to gcs
+    gcs_file_path = upload_raw_data_to_gcs(raw_file_path)
     
-    #Download raw data from s3
-    raw_data = download_raw_data_from_s3(s3_file_path)
+    #Download raw data from gcs
+    raw_data = download_raw_data_from_gcs(gcs_file_path)
     
     # Clean the time value
     clean_data = clean_time_value(raw_data)
