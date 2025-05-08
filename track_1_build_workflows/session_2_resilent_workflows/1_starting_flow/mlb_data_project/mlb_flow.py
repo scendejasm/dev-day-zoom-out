@@ -1,6 +1,7 @@
 from prefect import flow, task, runtime
 from prefect.artifacts import create_markdown_artifact
 # from prefect_aws.s3 import S3Bucket
+# from prefect.tasks import exponential_backoff
 from prefect_gcp.cloud_storage import GcsBucket
 from prefect.blocks.system import Secret
 from datetime import datetime
@@ -8,6 +9,8 @@ import statsapi
 import json
 import pandas as pd
 import duckdb
+import random
+import time
 
 # Credentials
 
@@ -48,8 +51,33 @@ def download_raw_data_from_gcs(gcs_file_path):
 
     return local_file_path
 
-@task
+# Custom retry handler
+def retry_handler(task, task_run, state) -> bool:
+    """Custom retry handler that specifies when to retry a task"""
+    try:
+        # Attempt to get the result of the task.
+        state.result()
+    except Exception as e:
+        # If Exception is a TimeoutError, retry.
+        if isinstance(e, TimeoutError):
+            return True
+        # For any other exception, do not retry.
+        return False
+
+@task(retries=10, retry_condition_fn=retry_handler)
 def get_recent_games(team_name, start_date, end_date):
+    # Generate random number.
+    failure_chance = random.random() 
+
+    # Simulate different types of failures.
+    if failure_chance < 0.3:
+        time.sleep(2) # Allow us to see the retries in action.
+        raise Exception("Simulated API failure: MLB Stats API is temporarily unavailable.")
+    elif failure_chance >= 0.4:
+        time.sleep(2) # Allow us to see the retris in action
+        raise TimeoutError("Simulated timeout: Request took too long") # Simulate erjjj
+
+    # If no failure, preceed with actual API call.
     '''This task will fetch the schedule for the provided team and date range and return the game ids.'''
     team = statsapi.lookup_team(team_name)
     schedule = statsapi.schedule(team=team[0]["id"], start_date=start_date, end_date=end_date)
